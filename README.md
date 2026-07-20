@@ -13,6 +13,9 @@ Install the AVR bare-metal toolchain:
 - **avr-gcc** — compiler
 - **avr-libc** — headers (`avr/io.h`, `util/delay.h`, etc.)
 - **avrdude** — uploads compiled firmware to the board over USB
+- **make** — runs the per-exercise `Makefile` so you don't have to type the compile/upload
+  commands by hand. Windows: `winget install ezwinports.make`. macOS: bundled with Xcode
+  Command Line Tools. Linux: `sudo apt install make`.
 
 Windows: easiest path is installing the [Arduino IDE](https://www.arduino.cc/en/software),
 which bundles avr-gcc/avrdude under `%LOCALAPPDATA%\Arduino15\packages\arduino\tools\`.
@@ -54,37 +57,49 @@ avr-gcc --version
 avrdude -v
 ```
 
-## Compile
+## Build & Flash
 
 Each exercise lives in its own folder (e.g. `level1_raw_blink/`) and contains a single
-`.c` file. From that folder:
+`.c` file plus a `Makefile`. From that folder:
+
+```sh
+make          # compile -> .elf -> .hex
+make run      # compile (if needed) and flash over USB
+make clean    # remove .elf/.hex build artifacts
+```
+
+`PORT` defaults to `COM4` — override it if your board enumerates elsewhere:
+
+```sh
+make run PORT=COM5
+```
+
+- Windows: check Device Manager under "Ports" for the `COM<N>` your board is on.
+- macOS/Linux: `PORT` looks like `/dev/tty.usbmodem*` or `/dev/ttyACM0` / `/dev/ttyUSB0`; edit
+  the `PORT` default in the `Makefile` or pass it on the command line.
+- Some older Uno bootloaders need `BAUD=57600` (edit the `Makefile`'s `BAUD` variable).
+
+New exercise folders can copy `level1_raw_blink/Makefile` as-is — it picks up whatever `.c`
+file is in the folder automatically.
+
+### Under the hood
+
+`make` runs the same steps you'd type by hand:
 
 ```sh
 avr-gcc -mmcu=atmega328p -DF_CPU=16000000UL -Os -o blink.elf blink.c
 avr-objcopy -O ihex -R .eeprom blink.elf blink.hex
+avrdude -C "$env:AVRDUDE_CONF" -v -p atmega328p -c arduino -P <PORT> -b 115200 -D -U flash:w:blink.hex:i
 ```
 
 - `-mmcu=atmega328p` targets the Uno's chip.
 - `-DF_CPU=16000000UL` defines the CPU clock speed (16 MHz on the Uno), used by `util/delay.h` timing macros.
 - `-Os` optimizes for size (typical for embedded targets).
 - `avr-objcopy` converts the ELF binary into the Intel HEX format avrdude expects.
-
-## Upload
-
-Find your board's serial port, then flash it:
-
-```sh
-avrdude -C "$env:AVRDUDE_CONF" -v -p atmega328p -c arduino -P <PORT> -b 115200 -D -U flash:w:blink.hex:i
-```
-
 - `-C "$env:AVRDUDE_CONF"` points avrdude at its config file (set up in Prerequisites above). On
   macOS/Linux, drop this flag and rely on avrdude's built-in default config, or point it at your
   install's `avrdude.conf` directly.
 - `-D` disables auto-erase, so only the pages being written are erased.
-
-- Windows: `<PORT>` looks like `COM3` (check Device Manager under "Ports").
-- macOS/Linux: `<PORT>` looks like `/dev/tty.usbmodem*` or `/dev/ttyACM0` / `/dev/ttyUSB0`.
-- Some older Uno bootloaders need `-b 57600` instead of `115200`.
 
 ## Run
 
