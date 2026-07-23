@@ -2,8 +2,8 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#define LED_PIN     PB5   /* Arduino pin 13 (onboard LED) */
-#define BUTTON_PIN  PD2   /* Arduino pin 2 */
+#define LED_PIN     PB5   /* Arduino pin 13 (onboard LED); PB5 = bit 5 of Port B */
+#define BUTTON_PIN  PD2   /* Arduino pin 2; PD2 = bit 2 of Port D, also INT0 (external interrupt 0) */
 
 int main(void)
 {
@@ -43,6 +43,7 @@ int main(void)
     const uint16_t speeds_ms[] = {1000, 300, 100};   /* slow, medium, fast */
     uint8_t speed_index = 0;
     uint8_t button_was_pressed = 0;
+    uint8_t button_is_pressed = 0;
 
     while (1) {
         /* !(PIND & (1 << BUTTON_PIN))
@@ -65,7 +66,7 @@ int main(void)
          * pin HIGH (idle)    -> PIND & mask is nonzero -> !(...) = 0 = not pressed
          * pin LOW (pressed)  -> PIND & mask is 0        -> !(...) = 1 = pressed
          */
-        uint8_t button_is_pressed = !(PIND & (1 << BUTTON_PIN));
+        // uint8_t button_is_pressed = !(PIND & (1 << BUTTON_PIN));
 
         if (button_is_pressed && !button_was_pressed) {
             _delay_ms(30);                              /* debounce settle */
@@ -79,6 +80,7 @@ int main(void)
 
         /* busy-wait for the current speed setting, in 10ms steps */
         for (uint16_t i = 0; i < speeds_ms[speed_index] / 10; i++) {
+            button_is_pressed = !(PIND & (1 << BUTTON_PIN));
             _delay_ms(10);
         }
     }
