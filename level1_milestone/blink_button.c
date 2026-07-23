@@ -46,41 +46,46 @@ int main(void)
     uint8_t button_is_pressed = 0;
 
     while (1) {
-        /* !(PIND & (1 << BUTTON_PIN))
-         *
-         * PIND is the register you READ to see the current electrical level
-         * on each pin of port D (as opposed to DDRD = direction, PORTD =
-         * output value/pull-up config). PIND & mask uses AND to ISOLATE bit
-         * 2: every other bit gets AND-ed with 0 and becomes 0, while bit 2
-         * survives as whatever it actually was (X & 1 == X). So the result
-         * is 0b00000100 if the pin is HIGH, or 0b00000000 if the pin is LOW
-         * -- everything else is zeroed out, regardless of what it was.
-         *
-         * That result is still "0b00000100" (i.e. 4), not "1", when the pin
-         * is high -- masking only isolates the bit, it doesn't move it to
-         * position 0. The leading ! (logical NOT, not bitwise ~) then
-         * collapses that isolated value down to a plain boolean: any nonzero
-         * value becomes 0, and zero becomes 1. Since we wired a pull-up
-         * (idle = HIGH = pin electrically 1 = "not pressed"), the raw read
-         * is backwards from what we want logically, so ! flips it:
-         * pin HIGH (idle)    -> PIND & mask is nonzero -> !(...) = 0 = not pressed
-         * pin LOW (pressed)  -> PIND & mask is 0        -> !(...) = 1 = pressed
-         */
-        // uint8_t button_is_pressed = !(PIND & (1 << BUTTON_PIN));
-
-        if (button_is_pressed && !button_was_pressed) {
-            _delay_ms(30);                              /* debounce settle */
-            if (!(PIND & (1 << BUTTON_PIN))) {           /* still pressed? (same read+mask+NOT as above) */
-                speed_index = (speed_index + 1) % 3;     /* cycle speed */
-            }
-        }
-        button_was_pressed = button_is_pressed;
-
         PORTB ^= (1 << LED_PIN);   /* toggle LED bit via XOR -- see blink.c for why ^= flips one bit */
 
-        /* busy-wait for the current speed setting, in 10ms steps */
+        /* busy-wait for the current speed setting, in 10ms steps. The button
+         * is sampled and edge-checked on every step (not just once per
+         * blink) so a quick tap isn't missed between samples -- previously
+         * this check only ran once per full blink period, which meant a tap
+         * had to happen to still be held during the very last 10ms sample of
+         * up to a 1000ms window to register at all. */
         for (uint16_t i = 0; i < speeds_ms[speed_index] / 10; i++) {
+            /* !(PIND & (1 << BUTTON_PIN))
+             *
+             * PIND is the register you READ to see the current electrical
+             * level on each pin of port D (as opposed to DDRD = direction,
+             * PORTD = output value/pull-up config). PIND & mask uses AND to
+             * ISOLATE bit 2: every other bit gets AND-ed with 0 and becomes
+             * 0, while bit 2 survives as whatever it actually was (X & 1 ==
+             * X). So the result is 0b00000100 if the pin is HIGH, or
+             * 0b00000000 if the pin is LOW -- everything else is zeroed out.
+             *
+             * That result is still "0b00000100" (i.e. 4), not "1", when the
+             * pin is high -- masking only isolates the bit, it doesn't move
+             * it to position 0. The leading ! (logical NOT, not bitwise ~)
+             * then collapses that isolated value down to a plain boolean:
+             * any nonzero value becomes 0, and zero becomes 1. Since we
+             * wired a pull-up (idle = HIGH = pin electrically 1 = "not
+             * pressed"), the raw read is backwards from what we want
+             * logically, so ! flips it:
+             * pin HIGH (idle)    -> PIND & mask is nonzero -> !(...) = 0 = not pressed
+             * pin LOW (pressed)  -> PIND & mask is 0        -> !(...) = 1 = pressed
+             */
             button_is_pressed = !(PIND & (1 << BUTTON_PIN));
+
+            if (button_is_pressed && !button_was_pressed) {
+                _delay_ms(30);                              /* debounce settle */
+                if (!(PIND & (1 << BUTTON_PIN))) {           /* still pressed? (same read+mask+NOT as above) */
+                    speed_index = (speed_index + 1) % 3;     /* cycle speed */
+                }
+            }
+            button_was_pressed = button_is_pressed;
+
             _delay_ms(10);
         }
     }
